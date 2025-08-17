@@ -8,15 +8,13 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write  # Required for pushing commits
-      
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -34,10 +32,34 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python script.py
 
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'Update last_seen.txt [skip ci]'
-          file_pattern: 'last_seen.txt'
-          commit_user_name: 'github-actions[bot]'
-          commit_user_email: '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Commit and push changes if any
+        run: |
+          set +e  # Don't exit on error
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are any changes
+          git add last_seen.txt
+          
+          if git diff --staged --quiet; then
+            echo "No changes detected in last_seen.txt"
+            exit 0
+          fi
+          
+          # Attempt to commit and push
+          echo "Changes detected, committing..."
+          if git commit -m "Update last_seen.txt - $(date '+%Y-%m-%d %H:%M:%S UTC')"; then
+            echo "Commit successful, pushing..."
+            if git push; then
+              echo "Push successful"
+              exit 0
+            else
+              echo "Push failed"
+              exit 1
+            fi
+          else
+            echo "Commit failed"
+            exit 1
+          fi
