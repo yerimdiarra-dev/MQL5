@@ -8,13 +8,15 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-
+    
+    permissions:
+      contents: write  # Required for pushing commits
+      
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
-          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -32,14 +34,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python script.py
 
-      - name: Commit and push changes if any
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --staged --quiet; then
-            git commit -m "Update last_seen.txt - $(date)"
-            git push
-          else
-            echo "No changes to commit"
-          fi
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'Update last_seen.txt [skip ci]'
+          file_pattern: 'last_seen.txt'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: '41898282+github-actions[bot]@users.noreply.github.com'
