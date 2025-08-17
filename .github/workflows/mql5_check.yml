@@ -1,23 +1,23 @@
 name: MQL5 Job Monitor
 
-permissions:
-  contents: write        # Required to push commits
-  actions: read         # Required to read workflow info
-
 on:
   schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
+    - cron: '*/2 * * * *'   # every 2 minutes
   workflow_dispatch: {}
 
 jobs:
   check:
     runs-on: ubuntu-latest
-
+    
+    permissions:
+      contents: write
+      actions: read
+      
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -30,40 +30,74 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser requests
 
+      - name: Debug - Show context information
+        run: |
+          echo "=== GitHub Context Information ==="
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Ref name: ${{ github.ref_name }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Default branch: ${{ github.event.repository.default_branch }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=== Git Status ==="
+          git branch -a
+          git status
+
       - name: Run monitor script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python script.py
 
-      - name: Commit and push changes if any
+      - name: Commit and push changes (Universal method)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set +e  # Don't exit on error
-          
           # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Check if there are any changes
-          git add last_seen.txt
-          
-          if git diff --staged --quiet; then
-            echo "No changes detected in last_seen.txt"
-            exit 0
+          # Determine the correct branch to push to
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            BRANCH="${{ github.event.repository.default_branch }}"
+            echo "Scheduled run: using default branch $BRANCH"
+          else
+            BRANCH="${{ github.ref_name }}"
+            echo "Manual run: using current branch $BRANCH"
           fi
           
-          # Attempt to commit and push
-          echo "Changes detected, committing..."
-          if git commit -m "Update last_seen.txt - $(date '+%Y-%m-%d %H:%M:%S UTC')"; then
-            echo "Commit successful, pushing..."
-            if git push; then
-              echo "Push successful"
+          # Ensure we're on the correct branch
+          git checkout "$BRANCH" || git checkout -b "$BRANCH"
+          
+          # Add the file if it exists
+          if [ -f "last_seen.txt" ]; then
+            git add last_seen.txt
+            
+            # Check if there are changes to commit
+            if git diff --staged --quiet; then
+              echo "No changes to commit"
               exit 0
-            else
-              echo "Push failed"
-              exit 1
             fi
+            
+            # Commit changes
+            git commit -m "Update last_seen.txt - $(date -u '+%Y-%m-%d %H:%M:%S UTC') - ${{ github.event_name }}"
+            
+            # Push changes with retry logic
+            for i in {1..3}; do
+              if git push origin "$BRANCH"; then
+                echo "Successfully pushed changes on attempt $i"
+                break
+              else
+                echo "Push attempt $i failed, retrying..."
+                sleep 2
+              fi
+              
+              if [ $i -eq 3 ]; then
+                echo "All push attempts failed"
+                exit 1
+              fi
+            done
+            
           else
-            echo "Commit failed"
-            exit 1
+            echo "last_seen.txt file not found"
           fi
