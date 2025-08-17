@@ -6,8 +6,8 @@ import requests
 RSS_URL = "https://www.mql5.com/en/job/rss"
 LAST_FILE = "last_seen.txt"
 
-BOT_TOKEN = os.environ.get("8326602541:AAGAxOZm5u67cyHsLM_IzHI95pI-UULq1Dc")
-CHAT_ID = os.environ.get("701789804")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def read_last():
     if not os.path.exists(LAST_FILE):
