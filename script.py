@@ -68,7 +68,7 @@ def send_telegram_message(text):
         "chat_id": CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
-        "disable_web_page_preview": False
+        "disable_web_page_preview": True  # This disables link previews
     }
     
     try:
