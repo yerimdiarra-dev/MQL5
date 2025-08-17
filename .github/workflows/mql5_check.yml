@@ -1,5 +1,9 @@
 name: MQL5 Job Monitor
 
+permissions:
+  contents: write        # Required to push commits
+  actions: read         # Required to read workflow info
+
 on:
   schedule:
     - cron: '*/5 * * * *'   # every 5 minutes
